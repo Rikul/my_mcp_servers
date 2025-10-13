@@ -1,0 +1,1 @@
+"""Countries & Currencies MCP Server."""

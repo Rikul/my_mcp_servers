@@ -1,0 +1,10 @@
+README.md
+pyproject.toml
+src/wikipedia_mcp/__init__.py
+src/wikipedia_mcp/server.py
+src/wikipedia_mcp.egg-info/PKG-INFO
+src/wikipedia_mcp.egg-info/SOURCES.txt
+src/wikipedia_mcp.egg-info/dependency_links.txt
+src/wikipedia_mcp.egg-info/entry_points.txt
+src/wikipedia_mcp.egg-info/requires.txt
+src/wikipedia_mcp.egg-info/top_level.txt
