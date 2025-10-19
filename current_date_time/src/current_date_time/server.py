@@ -1,10 +1,34 @@
 from datetime import datetime
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from typing import Optional
 from mcp.server.fastmcp import FastMCP
 
 # Initialize FastMCP server
 mcp = FastMCP("Current Date & Time")
+
+
+def _get_datetime_with_timezone(timezone: Optional[str] = None) -> tuple[datetime, str]:
+    """
+    Helper function to get datetime with timezone.
+    
+    Args:
+        timezone: Optional timezone name
+        
+    Returns:
+        Tuple of (datetime object, timezone name)
+        
+    Raises:
+        ZoneInfoNotFoundError: If the timezone is invalid
+    """
+    if timezone:
+        tz = ZoneInfo(timezone)
+        dt = datetime.now(tz)
+        tz_name = timezone
+    else:
+        dt = datetime.now()
+        tz_name = "Local"
+    
+    return dt, tz_name
 
 
 @mcp.tool()
@@ -19,16 +43,11 @@ def get_today_date(timezone: Optional[str] = None) -> str:
     Returns:
         Today's date in YYYY-MM-DD format
     """
-    if timezone:
-        try:
-            tz = ZoneInfo(timezone)
-            today = datetime.now(tz)
-        except Exception as e:
-            return f"Error: Invalid timezone '{timezone}'. {str(e)}"
-    else:
-        today = datetime.now()
-    
-    return today.strftime("%Y-%m-%d")
+    try:
+        today, _ = _get_datetime_with_timezone(timezone)
+        return today.strftime("%Y-%m-%d")
+    except ZoneInfoNotFoundError:
+        return f"Error: Invalid timezone '{timezone}'. Please use a valid IANA timezone identifier."
 
 
 @mcp.tool()
@@ -43,18 +62,11 @@ def get_current_time(timezone: Optional[str] = None) -> str:
     Returns:
         Current time in HH:MM:SS format along with the timezone
     """
-    if timezone:
-        try:
-            tz = ZoneInfo(timezone)
-            now = datetime.now(tz)
-            tz_name = timezone
-        except Exception as e:
-            return f"Error: Invalid timezone '{timezone}'. {str(e)}"
-    else:
-        now = datetime.now()
-        tz_name = "Local"
-    
-    return f"{now.strftime('%H:%M:%S')} ({tz_name})"
+    try:
+        now, tz_name = _get_datetime_with_timezone(timezone)
+        return f"{now.strftime('%H:%M:%S')} ({tz_name})"
+    except ZoneInfoNotFoundError:
+        return f"Error: Invalid timezone '{timezone}'. Please use a valid IANA timezone identifier."
 
 
 def main():
