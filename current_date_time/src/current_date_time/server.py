@@ -18,7 +18,7 @@ def _get_datetime_with_timezone(timezone: Optional[str] = None) -> tuple[datetim
         Tuple of (datetime object, timezone name)
         
     Raises:
-        ZoneInfoNotFoundError: If the timezone is invalid
+        ZoneInfoNotFoundError: If the timezone parameter is provided but invalid
     """
     if timezone:
         tz = ZoneInfo(timezone)
