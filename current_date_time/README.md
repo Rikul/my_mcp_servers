@@ -4,7 +4,8 @@ This is a sample MCP server that provides tools for getting the current date and
 
 ## Features
 
-- Get today's date in YYYY-MM-DD format
+- Get today's date in YYYY-MM-DD format (with optional timezone support)
+- Get the current time in HH:MM:SS format (with optional timezone support)
 
 ## Installation
 
@@ -86,3 +87,29 @@ Or run the server script directly:
   }
 }
 ```
+
+## Tools
+
+### get_today_date
+
+Get today's date with optional timezone support.
+
+**Parameters:**
+- `timezone` (optional): Timezone name (e.g., "America/New_York", "Europe/London", "Asia/Tokyo")
+
+**Examples:**
+- `get_today_date()` - Returns date in local timezone
+- `get_today_date("America/New_York")` - Returns date in New York timezone
+- `get_today_date("Asia/Tokyo")` - Returns date in Tokyo timezone
+
+### get_current_time
+
+Get the current time with optional timezone support.
+
+**Parameters:**
+- `timezone` (optional): Timezone name (e.g., "America/New_York", "Europe/London", "Asia/Tokyo")
+
+**Examples:**
+- `get_current_time()` - Returns time in local timezone
+- `get_current_time("America/New_York")` - Returns time in New York timezone
+- `get_current_time("Europe/London")` - Returns time in London timezone
