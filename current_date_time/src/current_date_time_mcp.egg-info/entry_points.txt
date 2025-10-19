@@ -1,0 +1,2 @@
+[console_scripts]
+current-date-time-mcp = current_date_time.server:main
