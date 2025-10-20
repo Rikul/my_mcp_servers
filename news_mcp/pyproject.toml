@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "news-mcp"
+version = "0.1.0"
+dependencies = [
+    "mcp",
+    "httpx",
+    "feedparser"
+]
+
+[project.scripts]
+news-mcp = "news_mcp.server:main"
