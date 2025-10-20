@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "math-and-logic-mcp"
+version = "0.1.0"
+dependencies = [
+    "mcp",
+]
+
+[project.scripts]
+math-and-logic-mcp = "math_and_logic.server:main"
