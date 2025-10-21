@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "markdown-to-pdf-mcp"
+version = "0.1.0"
+description = "MCP server for converting Markdown to PDF"
+dependencies = [
+    "mcp",
+    "markdown",
+    "weasyprint"
+]
+
+[project.scripts]
+markdown-to-pdf-mcp = "markdown_to_pdf.server:main"
