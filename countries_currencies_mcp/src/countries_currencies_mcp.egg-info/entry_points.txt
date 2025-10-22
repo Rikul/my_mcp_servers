@@ -1,2 +1,0 @@
-[console_scripts]
-countries-currencies-mcp = countries_currencies.server:main

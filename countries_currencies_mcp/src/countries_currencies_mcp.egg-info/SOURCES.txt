@@ -1,9 +1,0 @@
-pyproject.toml
-src/countries_currencies/__init__.py
-src/countries_currencies/server.py
-src/countries_currencies_mcp.egg-info/PKG-INFO
-src/countries_currencies_mcp.egg-info/SOURCES.txt
-src/countries_currencies_mcp.egg-info/dependency_links.txt
-src/countries_currencies_mcp.egg-info/entry_points.txt
-src/countries_currencies_mcp.egg-info/requires.txt
-src/countries_currencies_mcp.egg-info/top_level.txt
