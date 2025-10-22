@@ -90,7 +90,7 @@ Executes a custom SELECT query on the database.
 - `query` (string, required): SELECT query to execute
 
 **Security:**
-- Only SELECT queries are allowed
+- Only read-only queries (starting with SELECT or WITH) are allowed
 - Queries are validated to prevent write operations
 - Prohibited keywords: INSERT, UPDATE, DELETE, DROP, CREATE, ALTER, TRUNCATE, REPLACE, ATTACH, DETACH, PRAGMA
 
@@ -122,7 +122,7 @@ The server implements multiple layers of protection to ensure read-only access:
 
 1. **Query Validation**: All queries are validated before execution
 2. **Keyword Blocking**: Prohibited SQL keywords are detected and blocked
-3. **SELECT-Only**: Only queries starting with SELECT are allowed
+3. **SELECT-Only**: Only queries starting with SELECT or WITH are allowed
 4. **Comment Stripping**: SQL comments are removed before validation to prevent bypasses
 
 ### Table Name Sanitization
