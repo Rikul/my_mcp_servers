@@ -21,8 +21,9 @@ pip install -e .
 
 This will install the server and its dependencies:
 - `mcp` - Model Context Protocol framework
-- `markdown` - Markdown to HTML conversion
-- `weasyprint` - HTML to PDF rendering
+- `markdown` - Markdown parser with extensions support
+- `reportlab` - Pure Python PDF generation library (no external dependencies required)
+- `Pygments` - Syntax highlighting support
 
 ## Usage
 
@@ -241,33 +242,7 @@ The PDF output includes professional default styling with:
 
 ### Custom Styling
 
-You can override the default styling by providing custom CSS:
-
-```python
-custom_css = """
-@page {
-    size: Letter;
-    margin: 1in;
-}
-
-body {
-    font-family: Georgia, serif;
-    font-size: 12pt;
-    color: #000;
-}
-
-h1 {
-    color: #0066cc;
-    font-size: 24pt;
-}
-"""
-
-save_markdown_to_pdf(
-    markdown_content="# Custom Styled Document",
-    filename="custom.pdf",
-    css_styles=custom_css
-)
-```
+The server uses reportlab's built-in styling system with professional defaults. While the `css_styles` parameter is available for compatibility, the styling is handled internally through reportlab's ParagraphStyle system, which provides clean and consistent PDF output without requiring external dependencies.
 
 ## Configuration
 

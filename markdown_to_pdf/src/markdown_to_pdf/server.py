@@ -5,17 +5,424 @@ Provides tools to convert Markdown content to PDF files.
 """
 
 import os
+import re
 from pathlib import Path
 from typing import Optional
 from mcp.server.fastmcp import FastMCP
 import markdown
-from weasyprint import HTML, CSS
+from io import BytesIO
+
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch, cm
+from reportlab.platypus import (
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
+    PageBreak, Preformatted, ListFlowable, ListItem
+)
+from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT, TA_JUSTIFY
+from reportlab.pdfgen import canvas
 
 # Initialize the MCP server
 mcp = FastMCP("Markdown to PDF")
 
 # Get the default output directory from environment variable
 DEFAULT_OUTPUT_DIR = os.getenv("MARKDOWN_PDF_OUTPUT_DIR", os.getcwd())
+
+
+def create_styles():
+    """Create custom paragraph styles for PDF."""
+    styles = getSampleStyleSheet()
+
+    # Heading styles
+    styles.add(ParagraphStyle(
+        name='CustomH1',
+        parent=styles['Heading1'],
+        fontSize=24,
+        textColor=colors.HexColor('#333333'),
+        spaceAfter=12,
+        spaceBefore=12,
+        fontName='Helvetica-Bold'
+    ))
+
+    styles.add(ParagraphStyle(
+        name='CustomH2',
+        parent=styles['Heading2'],
+        fontSize=20,
+        textColor=colors.HexColor('#333333'),
+        spaceAfter=10,
+        spaceBefore=10,
+        fontName='Helvetica-Bold'
+    ))
+
+    styles.add(ParagraphStyle(
+        name='CustomH3',
+        parent=styles['Heading3'],
+        fontSize=16,
+        textColor=colors.HexColor('#333333'),
+        spaceAfter=8,
+        spaceBefore=8,
+        fontName='Helvetica-Bold'
+    ))
+
+    styles.add(ParagraphStyle(
+        name='CustomH4',
+        parent=styles['Heading4'],
+        fontSize=14,
+        textColor=colors.HexColor('#333333'),
+        spaceAfter=6,
+        spaceBefore=6,
+        fontName='Helvetica-Bold'
+    ))
+
+    styles.add(ParagraphStyle(
+        name='CustomH5',
+        parent=styles['Heading4'],
+        fontSize=12,
+        textColor=colors.HexColor('#333333'),
+        spaceAfter=6,
+        spaceBefore=6,
+        fontName='Helvetica-Bold'
+    ))
+
+    styles.add(ParagraphStyle(
+        name='CustomH6',
+        parent=styles['Heading4'],
+        fontSize=11,
+        textColor=colors.HexColor('#666666'),
+        spaceAfter=6,
+        spaceBefore=6,
+        fontName='Helvetica-Bold'
+    ))
+
+    # Body text style
+    styles.add(ParagraphStyle(
+        name='CustomBody',
+        parent=styles['BodyText'],
+        fontSize=11,
+        textColor=colors.HexColor('#333333'),
+        spaceAfter=12,
+        alignment=TA_LEFT,
+        fontName='Helvetica'
+    ))
+
+    # Code style
+    styles.add(ParagraphStyle(
+        name='CustomCode',
+        parent=styles['Code'],
+        fontSize=9,
+        textColor=colors.HexColor('#333333'),
+        backColor=colors.HexColor('#f6f8fa'),
+        spaceAfter=12,
+        spaceBefore=12,
+        leftIndent=12,
+        rightIndent=12,
+        fontName='Courier'
+    ))
+
+    # Blockquote style
+    styles.add(ParagraphStyle(
+        name='CustomBlockquote',
+        parent=styles['BodyText'],
+        fontSize=11,
+        textColor=colors.HexColor('#666666'),
+        leftIndent=20,
+        borderColor=colors.HexColor('#dddddd'),
+        borderWidth=4,
+        borderPadding=10,
+        spaceAfter=12,
+        fontName='Helvetica-Oblique'
+    ))
+
+    return styles
+
+
+def escape_html(text):
+    """Escape HTML/XML special characters for reportlab."""
+    text = text.replace('&', '&amp;')
+    text = text.replace('<', '&lt;')
+    text = text.replace('>', '&gt;')
+    return text
+
+
+def markdown_to_reportlab(markdown_text):
+    """Convert markdown text to reportlab elements."""
+    styles = create_styles()
+    story = []
+
+    lines = markdown_text.split('\n')
+    i = 0
+    in_code_block = False
+    code_block_lines = []
+    in_list = False
+    list_items = []
+    list_type = None
+
+    while i < len(lines):
+        line = lines[i]
+
+        # Handle code blocks
+        if line.strip().startswith('```'):
+            if in_code_block:
+                # End of code block
+                code_text = '\n'.join(code_block_lines)
+                code_text = escape_html(code_text)
+                story.append(Preformatted(code_text, styles['CustomCode']))
+                code_block_lines = []
+                in_code_block = False
+            else:
+                # Start of code block
+                in_code_block = True
+            i += 1
+            continue
+
+        if in_code_block:
+            code_block_lines.append(line)
+            i += 1
+            continue
+
+        # Handle headers
+        header_match = re.match(r'^(#{1,6})\s+(.+)$', line)
+        if header_match:
+            if in_list:
+                story.append(create_list(list_items, list_type, styles))
+                list_items = []
+                in_list = False
+
+            level = len(header_match.group(1))
+            text = header_match.group(2)
+            text = process_inline_formatting(text)
+            style_name = f'CustomH{level}'
+            story.append(Paragraph(text, styles[style_name]))
+            i += 1
+            continue
+
+        # Handle horizontal rules
+        if re.match(r'^(-{3,}|\*{3,}|_{3,})$', line.strip()):
+            if in_list:
+                story.append(create_list(list_items, list_type, styles))
+                list_items = []
+                in_list = False
+            story.append(Spacer(1, 0.2*inch))
+            story.append(Table([['']],  colWidths=[6*inch], style=[
+                ('LINEABOVE', (0, 0), (-1, -1), 1, colors.HexColor('#eeeeee'))
+            ]))
+            story.append(Spacer(1, 0.2*inch))
+            i += 1
+            continue
+
+        # Handle unordered lists
+        list_match = re.match(r'^(\s*)[-*+]\s+(.+)$', line)
+        if list_match:
+            indent = len(list_match.group(1))
+            text = list_match.group(2)
+            text = process_inline_formatting(text)
+
+            if not in_list or list_type != 'bullet':
+                if in_list:
+                    story.append(create_list(list_items, list_type, styles))
+                    list_items = []
+                list_type = 'bullet'
+                in_list = True
+
+            list_items.append(text)
+            i += 1
+            continue
+
+        # Handle ordered lists
+        ordered_list_match = re.match(r'^(\s*)(\d+)\.\s+(.+)$', line)
+        if ordered_list_match:
+            indent = len(ordered_list_match.group(1))
+            text = ordered_list_match.group(3)
+            text = process_inline_formatting(text)
+
+            if not in_list or list_type != 'number':
+                if in_list:
+                    story.append(create_list(list_items, list_type, styles))
+                    list_items = []
+                list_type = 'number'
+                in_list = True
+
+            list_items.append(text)
+            i += 1
+            continue
+
+        # Handle blockquotes
+        blockquote_match = re.match(r'^>\s*(.*)$', line)
+        if blockquote_match:
+            if in_list:
+                story.append(create_list(list_items, list_type, styles))
+                list_items = []
+                in_list = False
+
+            text = blockquote_match.group(1)
+            # Collect multi-line blockquotes
+            blockquote_lines = [text]
+            i += 1
+            while i < len(lines) and re.match(r'^>\s*(.*)$', lines[i]):
+                blockquote_lines.append(re.match(r'^>\s*(.*)$', lines[i]).group(1))
+                i += 1
+
+            blockquote_text = ' '.join(blockquote_lines)
+            blockquote_text = process_inline_formatting(blockquote_text)
+            story.append(Paragraph(blockquote_text, styles['CustomBlockquote']))
+            continue
+
+        # Handle tables (simple markdown tables)
+        if '|' in line and line.strip().startswith('|'):
+            if in_list:
+                story.append(create_list(list_items, list_type, styles))
+                list_items = []
+                in_list = False
+
+            table_lines = [line]
+            i += 1
+            while i < len(lines) and '|' in lines[i] and lines[i].strip().startswith('|'):
+                table_lines.append(lines[i])
+                i += 1
+
+            table = parse_markdown_table(table_lines, styles)
+            if table:
+                story.append(table)
+            continue
+
+        # Handle empty lines
+        if not line.strip():
+            if in_list:
+                story.append(create_list(list_items, list_type, styles))
+                list_items = []
+                in_list = False
+            story.append(Spacer(1, 0.1*inch))
+            i += 1
+            continue
+
+        # Handle regular paragraphs
+        if line.strip():
+            if in_list:
+                story.append(create_list(list_items, list_type, styles))
+                list_items = []
+                in_list = False
+
+            # Collect multi-line paragraphs
+            para_lines = [line]
+            i += 1
+            while i < len(lines) and lines[i].strip() and not is_special_line(lines[i]):
+                para_lines.append(lines[i])
+                i += 1
+
+            para_text = ' '.join(para_lines)
+            para_text = process_inline_formatting(para_text)
+            story.append(Paragraph(para_text, styles['CustomBody']))
+            continue
+
+        i += 1
+
+    # Handle any remaining list
+    if in_list:
+        story.append(create_list(list_items, list_type, styles))
+
+    return story
+
+
+def is_special_line(line):
+    """Check if a line is a special markdown element."""
+    special_patterns = [
+        r'^#{1,6}\s+',  # Headers
+        r'^[-*+]\s+',   # Unordered list
+        r'^\d+\.\s+',   # Ordered list
+        r'^>\s*',       # Blockquote
+        r'^```',        # Code block
+        r'^\|',         # Table
+        r'^(-{3,}|\*{3,}|_{3,})$',  # Horizontal rule
+    ]
+    return any(re.match(pattern, line.strip()) for pattern in special_patterns)
+
+
+def create_list(items, list_type, styles):
+    """Create a list flowable from list items."""
+    list_items = []
+    for item_text in items:
+        list_items.append(ListItem(
+            Paragraph(item_text, styles['CustomBody']),
+            leftIndent=20
+        ))
+
+    bullet_type = 'bullet' if list_type == 'bullet' else '1'
+    return ListFlowable(
+        list_items,
+        bulletType=bullet_type,
+        start=1
+    )
+
+
+def process_inline_formatting(text):
+    """Process inline markdown formatting (bold, italic, code, links)."""
+    # Escape HTML first
+    text = escape_html(text)
+
+    # Bold and italic: **text** or __text__
+    text = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)
+    text = re.sub(r'__(.+?)__', r'<b>\1</b>', text)
+
+    # Italic: *text* or _text_
+    text = re.sub(r'\*(.+?)\*', r'<i>\1</i>', text)
+    text = re.sub(r'_(.+?)_', r'<i>\1</i>', text)
+
+    # Inline code: `code`
+    text = re.sub(r'`(.+?)`', r'<font name="Courier" backColor="#f6f8fa">\1</font>', text)
+
+    # Links: [text](url)
+    text = re.sub(r'\[(.+?)\]\((.+?)\)', r'<link href="\2" color="blue"><u>\1</u></link>', text)
+
+    # Strikethrough: ~~text~~
+    text = re.sub(r'~~(.+?)~~', r'<strike>\1</strike>', text)
+
+    return text
+
+
+def parse_markdown_table(table_lines, styles):
+    """Parse markdown table syntax into reportlab Table."""
+    if len(table_lines) < 2:
+        return None
+
+    # Parse header
+    header_cells = [cell.strip() for cell in table_lines[0].split('|')[1:-1]]
+
+    # Skip separator line
+    if len(table_lines) < 3:
+        return None
+
+    # Parse data rows
+    data = [header_cells]
+    for line in table_lines[2:]:
+        cells = [cell.strip() for cell in line.split('|')[1:-1]]
+        if cells:
+            data.append(cells)
+
+    if not data:
+        return None
+
+    # Create table
+    table = Table(data, repeatRows=1)
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f6f8fa')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#333333')),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 11),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#dddddd')),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f9f9f9')]),
+        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 1), (-1, -1), 10),
+        ('TOPPADDING', (0, 1), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
+        ('LEFTPADDING', (0, 0), (-1, -1), 12),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 12),
+    ]))
+
+    return table
 
 
 @mcp.tool()
@@ -34,8 +441,8 @@ def save_markdown_to_pdf(
         output_dir: Directory where the PDF should be saved. If not provided,
                    uses the MARKDOWN_PDF_OUTPUT_DIR environment variable or
                    the current working directory.
-        css_styles: Optional CSS styles to apply to the PDF. If not provided,
-                   uses default styling for readability.
+        css_styles: Optional CSS styles (Note: CSS is not fully supported with reportlab,
+                   but basic styling is built-in)
 
     Returns:
         Success message with the full path to the saved PDF, or error message
@@ -70,154 +477,20 @@ def save_markdown_to_pdf(
         # Full output path
         full_path = output_path / filename
 
-        # Convert Markdown to HTML
-        html_content = markdown.markdown(
-            markdown_content,
-            extensions=['extra', 'codehilite', 'tables', 'fenced_code']
-        )
+        # Convert Markdown to reportlab elements
+        story = markdown_to_reportlab(markdown_content)
 
-        # Default CSS for better PDF rendering
-        default_css = """
-        @page {
-            size: A4;
-            margin: 2.5cm;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-            font-size: 11pt;
-            line-height: 1.6;
-            color: #333;
-            max-width: 100%;
-        }
-
-        h1, h2, h3, h4, h5, h6 {
-            margin-top: 1.5em;
-            margin-bottom: 0.5em;
-            font-weight: 600;
-            line-height: 1.25;
-        }
-
-        h1 {
-            font-size: 2em;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 0.3em;
-        }
-
-        h2 {
-            font-size: 1.5em;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 0.3em;
-        }
-
-        h3 { font-size: 1.25em; }
-        h4 { font-size: 1em; }
-        h5 { font-size: 0.875em; }
-        h6 { font-size: 0.85em; color: #666; }
-
-        p {
-            margin-bottom: 1em;
-        }
-
-        code {
-            background-color: #f6f8fa;
-            border-radius: 3px;
-            padding: 0.2em 0.4em;
-            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-            font-size: 85%;
-        }
-
-        pre {
-            background-color: #f6f8fa;
-            border-radius: 3px;
-            padding: 16px;
-            overflow: auto;
-            line-height: 1.45;
-        }
-
-        pre code {
-            background-color: transparent;
-            padding: 0;
-            font-size: 100%;
-        }
-
-        blockquote {
-            border-left: 4px solid #ddd;
-            padding-left: 1em;
-            margin-left: 0;
-            color: #666;
-        }
-
-        table {
-            border-collapse: collapse;
-            width: 100%;
-            margin-bottom: 1em;
-        }
-
-        table th,
-        table td {
-            border: 1px solid #ddd;
-            padding: 8px 12px;
-            text-align: left;
-        }
-
-        table th {
-            background-color: #f6f8fa;
-            font-weight: 600;
-        }
-
-        table tr:nth-child(even) {
-            background-color: #f9f9f9;
-        }
-
-        a {
-            color: #0366d6;
-            text-decoration: none;
-        }
-
-        img {
-            max-width: 100%;
-            height: auto;
-        }
-
-        ul, ol {
-            padding-left: 2em;
-            margin-bottom: 1em;
-        }
-
-        li {
-            margin-bottom: 0.25em;
-        }
-
-        hr {
-            border: none;
-            border-top: 1px solid #eee;
-            margin: 1.5em 0;
-        }
-        """
-
-        # Wrap HTML content in a complete HTML document
-        full_html = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <title>Markdown to PDF</title>
-        </head>
-        <body>
-            {html_content}
-        </body>
-        </html>
-        """
-
-        # Use custom CSS if provided, otherwise use default
-        css_to_use = css_styles if css_styles else default_css
-
-        # Convert HTML to PDF
-        HTML(string=full_html).write_pdf(
+        # Create PDF
+        doc = SimpleDocTemplate(
             str(full_path),
-            stylesheets=[CSS(string=css_to_use)]
+            pagesize=A4,
+            rightMargin=2.5*cm,
+            leftMargin=2.5*cm,
+            topMargin=2.5*cm,
+            bottomMargin=2.5*cm
         )
+
+        doc.build(story)
 
         return f"Success: PDF saved to {full_path}"
 

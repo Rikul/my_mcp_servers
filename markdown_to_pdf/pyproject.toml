@@ -9,7 +9,8 @@ description = "MCP server for converting Markdown to PDF"
 dependencies = [
     "mcp",
     "markdown",
-    "weasyprint"
+    "reportlab",
+    "Pygments"
 ]
 
 [project.scripts]
