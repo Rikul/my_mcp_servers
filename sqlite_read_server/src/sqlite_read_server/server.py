@@ -281,6 +281,67 @@ def execute_select(query: str, db_path: str | None = None) -> dict[str, Any] | s
         return f"Error executing query: {str(e)}"
 
 
+@mcp.tool()
+def get_table_info(table_name: str, db_path: str | None = None) -> dict[str, Any] | str:
+    """
+    Get detailed information about a table's structure using PRAGMA table_info.
+
+    Args:
+        table_name: Name of the table to get information for
+        db_path: Path to the SQLite database file (optional if configured at startup)
+
+    Returns:
+        Dictionary containing table structure information, or error message
+    """
+    try:
+        validated_path = _validate_database_path(db_path)
+
+        # Sanitize table name to prevent SQL injection
+        # Only allow alphanumeric, underscore, and basic characters
+        if not re.match(r'^[a-zA-Z0-9_]+$', table_name):
+            return "Error: Invalid table name. Only alphanumeric characters and underscores are allowed."
+
+        conn = sqlite3.connect(validated_path)
+        try:
+            cursor = conn.cursor()
+
+            # Check if table exists
+            cursor.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+                (table_name,)
+            )
+            if not cursor.fetchone():
+                return f"Error: Table '{table_name}' does not exist"
+
+            # Get table info using PRAGMA table_info
+            cursor.execute(f"PRAGMA table_info({table_name})")
+            table_info = cursor.fetchall()
+
+            # Format the results into a more readable structure
+            columns = []
+            for row in table_info:
+                column_info = {
+                    "cid": row[0],          # Column ID (position)
+                    "name": row[1],         # Column name
+                    "type": row[2],         # Data type
+                    "notnull": bool(row[3]), # NOT NULL constraint
+                    "default_value": row[4], # Default value
+                    "pk": bool(row[5])      # Primary key
+                }
+                columns.append(column_info)
+
+            return {
+                "table_name": table_name,
+                "columns": columns,
+                "column_count": len(columns)
+            }
+        finally:
+            conn.close()
+
+    except Exception as e:
+        return f"Error getting table info: {str(e)}"
+
+
 def main() -> None:
     """Run the MCP server."""
     parser = argparse.ArgumentParser(description="SQLite Read-Only MCP Server")

@@ -392,12 +392,25 @@ def parse_markdown_table(table_lines, styles):
     if len(table_lines) < 3:
         return None
 
-    # Parse data rows
-    data = [header_cells]
+    # Parse data rows - wrap all cells in Paragraph objects
+    data = []
+
+    # Process header row
+    header_row = []
+    for cell in header_cells:
+        cell_text = escape_html(cell)
+        header_row.append(Paragraph(cell_text, styles['CustomBody']))
+    data.append(header_row)
+
+    # Process data rows
     for line in table_lines[2:]:
         cells = [cell.strip() for cell in line.split('|')[1:-1]]
         if cells:
-            data.append(cells)
+            row = []
+            for cell in cells:
+                cell_text = escape_html(cell)
+                row.append(Paragraph(cell_text, styles['CustomBody']))
+            data.append(row)
 
     if not data:
         return None
@@ -429,7 +442,6 @@ def parse_markdown_table(table_lines, styles):
 def save_markdown_to_pdf(
     markdown_content: str,
     filename: str,
-    output_dir: Optional[str] = None,
     css_styles: Optional[str] = None
 ) -> str:
     """
@@ -438,9 +450,6 @@ def save_markdown_to_pdf(
     Args:
         markdown_content: The Markdown text to convert to PDF
         filename: Name of the output PDF file (e.g., "document.pdf")
-        output_dir: Directory where the PDF should be saved. If not provided,
-                   uses the MARKDOWN_PDF_OUTPUT_DIR environment variable or
-                   the current working directory.
         css_styles: Optional CSS styles (Note: CSS is not fully supported with reportlab,
                    but basic styling is built-in)
 
@@ -450,13 +459,19 @@ def save_markdown_to_pdf(
     Example:
         save_markdown_to_pdf(
             markdown_content="# Hello World\\n\\nThis is a test.",
-            filename="test.pdf",
-            output_dir="/home/user/documents"
+            filename="test.pdf"
         )
     """
     try:
+        # Validate input type
+        if not isinstance(markdown_content, str):
+            return f"Error: markdown_content must be a string, got {type(markdown_content).__name__}"
+
+        if not isinstance(filename, str):
+            return f"Error: filename must be a string, got {type(filename).__name__}"
+
         # Determine output directory
-        target_dir = output_dir if output_dir else DEFAULT_OUTPUT_DIR
+        target_dir = DEFAULT_OUTPUT_DIR
 
         # Validate and create output directory if it doesn't exist
         output_path = Path(target_dir)
@@ -478,7 +493,12 @@ def save_markdown_to_pdf(
         full_path = output_path / filename
 
         # Convert Markdown to reportlab elements
-        story = markdown_to_reportlab(markdown_content)
+        try:
+            story = markdown_to_reportlab(markdown_content)
+        except AttributeError as e:
+            if 'decode' in str(e):
+                return f"Error: Type mismatch during markdown parsing. {str(e)}. Check that markdown_content is properly formatted text."
+            raise
 
         # Create PDF
         doc = SimpleDocTemplate(
@@ -490,7 +510,12 @@ def save_markdown_to_pdf(
             bottomMargin=2.5*cm
         )
 
-        doc.build(story)
+        try:
+            doc.build(story)
+        except AttributeError as e:
+            if 'decode' in str(e):
+                return f"Error: Type mismatch during PDF generation. {str(e)}. One of the story elements has an unexpected type."
+            raise
 
         return f"Success: PDF saved to {full_path}"
 
