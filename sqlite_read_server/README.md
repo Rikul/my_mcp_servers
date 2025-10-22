@@ -21,11 +21,99 @@ pip install -e .
 
 ## Usage
 
-Run the MCP server:
+### Command Line Options
 
+You can specify the database path in several ways:
+
+1. **Command line argument**:
+```bash
+sqlite-read-server-mcp --database /path/to/your/database.db
+# or short form:
+sqlite-read-server-mcp -d /path/to/your/database.db
+```
+
+2. **Environment variable**:
+```bash
+# Set environment variable
+set SQLITE_DATABASE_PATH=C:\path\to\your\database.db
+sqlite-read-server-mcp
+
+# Or use custom environment variable name
+set MY_DB_PATH=C:\path\to\your\database.db
+sqlite-read-server-mcp --env-var MY_DB_PATH
+```
+
+3. **No database configured** (database path required in each function call):
 ```bash
 sqlite-read-server-mcp
 ```
+
+## MCP Client Configuration
+
+To use this server with an MCP client (like Claude Desktop), add the following configuration:
+
+### Claude Desktop Configuration with Database Path
+
+Add this entry to your Claude Desktop configuration file (`%APPDATA%\Claude\claude_desktop_config.json` on Windows):
+
+```json
+{
+  "mcpServers": {
+    "sqlite-read-server": {
+      "command": "sqlite-read-server-mcp",
+      "args": ["--database", "C:\\path\\to\\your\\database.db"]
+    }
+  }
+}
+```
+
+### Using Environment Variable
+
+```json
+{
+  "mcpServers": {
+    "sqlite-read-server": {
+      "command": "sqlite-read-server-mcp",
+      "args": [],
+      "env": {
+        "SQLITE_DATABASE_PATH": "C:\\path\\to\\your\\database.db"
+      }
+    }
+  }
+}
+```
+
+### Alternative: Using Python Module
+
+If you prefer to run the server as a Python module:
+
+```json
+{
+  "mcpServers": {
+    "sqlite-read-server": {
+      "command": "python",
+      "args": ["-m", "sqlite_read_server.server", "--database", "C:\\path\\to\\your\\database.db"]
+    }
+  }
+}
+```
+
+### With Custom Environment
+
+If you installed the package in a virtual environment:
+
+```json
+{
+  "mcpServers": {
+    "sqlite-read-server": {
+      "command": "path/to/your/venv/Scripts/sqlite-read-server-mcp.exe",
+      "args": ["--database", "C:\\path\\to\\your\\database.db"]
+    }
+  }
+}
+```
+
+Once configured, restart your MCP client to load the server. The server will be available with three tools: `list_tables`, `read_rows`, and `execute_select`.
 
 ## Available Tools
 
@@ -34,13 +122,18 @@ sqlite-read-server-mcp
 Lists all tables in a SQLite database.
 
 **Parameters:**
-- `db_path` (string, required): Path to the SQLite database file
+- `db_path` (string, optional): Path to the SQLite database file (not required if configured at startup)
 
 **Returns:**
 - List of table names, or error message
 
 **Example:**
 ```python
+# When database is configured at startup
+list_tables()
+# Returns: ["users", "products", "orders"]
+
+# Or specify database path explicitly
 list_tables(db_path="/path/to/database.db")
 # Returns: ["users", "products", "orders"]
 ```
@@ -50,10 +143,10 @@ list_tables(db_path="/path/to/database.db")
 Reads rows from a specific table with pagination support.
 
 **Parameters:**
-- `db_path` (string, required): Path to the SQLite database file
 - `table_name` (string, required): Name of the table to read from
 - `limit` (integer, optional): Maximum number of rows to return (default: 100, max: 10000)
 - `offset` (integer, optional): Number of rows to skip (default: 0)
+- `db_path` (string, optional): Path to the SQLite database file (not required if configured at startup)
 
 **Returns:**
 - Dictionary containing:
@@ -65,11 +158,19 @@ Reads rows from a specific table with pagination support.
 
 **Example:**
 ```python
+# When database is configured at startup
 read_rows(
-    db_path="/path/to/database.db",
     table_name="users",
     limit=10,
     offset=0
+)
+
+# Or specify database path explicitly
+read_rows(
+    table_name="users",
+    limit=10,
+    offset=0,
+    db_path="/path/to/database.db"
 )
 # Returns:
 # {
@@ -86,8 +187,8 @@ read_rows(
 Executes a custom SELECT query on the database.
 
 **Parameters:**
-- `db_path` (string, required): Path to the SQLite database file
 - `query` (string, required): SELECT query to execute
+- `db_path` (string, optional): Path to the SQLite database file (not required if configured at startup)
 
 **Security:**
 - Only SELECT queries are allowed
@@ -102,9 +203,15 @@ Executes a custom SELECT query on the database.
 
 **Example:**
 ```python
+# When database is configured at startup
 execute_select(
-    db_path="/path/to/database.db",
     query="SELECT name, email FROM users WHERE id > 10 LIMIT 5"
+)
+
+# Or specify database path explicitly
+execute_select(
+    query="SELECT name, email FROM users WHERE id > 10 LIMIT 5",
+    db_path="/path/to/database.db"
 )
 # Returns:
 # {

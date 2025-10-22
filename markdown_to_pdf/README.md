@@ -40,6 +40,129 @@ markdown-to-pdf-mcp
 
 If you don't set `MARKDOWN_PDF_OUTPUT_DIR`, the server will use the current working directory as the default.
 
+## MCP Client Configuration
+
+To use this server with an MCP client (like Claude Desktop), add the following configuration:
+
+### Claude Desktop Configuration
+
+Add this entry to your Claude Desktop configuration file (`%APPDATA%\Claude\claude_desktop_config.json` on Windows or `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+
+#### Basic Configuration
+
+```json
+{
+  "mcpServers": {
+    "markdown-to-pdf": {
+      "command": "markdown-to-pdf-mcp",
+      "args": []
+    }
+  }
+}
+```
+
+#### With Custom Output Directory
+
+```json
+{
+  "mcpServers": {
+    "markdown-to-pdf": {
+      "command": "markdown-to-pdf-mcp",
+      "args": [],
+      "env": {
+        "MARKDOWN_PDF_OUTPUT_DIR": "C:\\Users\\YourName\\Documents\\PDFs"
+      }
+    }
+  }
+}
+```
+
+#### Using Python Module (Alternative)
+
+If you prefer to run the server as a Python module:
+
+```json
+{
+  "mcpServers": {
+    "markdown-to-pdf": {
+      "command": "python",
+      "args": ["-m", "markdown_to_pdf.server"]
+    }
+  }
+}
+```
+
+#### With Virtual Environment
+
+If you installed the package in a virtual environment:
+
+```json
+{
+  "mcpServers": {
+    "markdown-to-pdf": {
+      "command": "path/to/your/venv/Scripts/markdown-to-pdf-mcp.exe",
+      "args": [],
+      "env": {
+        "MARKDOWN_PDF_OUTPUT_DIR": "C:\\Users\\YourName\\Documents\\PDFs"
+      }
+    }
+  }
+}
+```
+
+#### Linux/macOS Configuration
+
+```json
+{
+  "mcpServers": {
+    "markdown-to-pdf": {
+      "command": "markdown-to-pdf-mcp",
+      "args": [],
+      "env": {
+        "MARKDOWN_PDF_OUTPUT_DIR": "/home/username/Documents/PDFs"
+      }
+    }
+  }
+}
+```
+
+Once configured, restart your MCP client to load the server. The server will be available with the `save_markdown_to_pdf` tool.
+
+### Using the Tool in MCP Clients
+
+Once the server is configured and running, you can use the `save_markdown_to_pdf` tool in your MCP client. Here are some example use cases:
+
+#### Basic Usage
+```
+Convert this markdown to PDF:
+
+# My Report
+This is a test document with **bold** text.
+
+Save it as "report.pdf"
+```
+
+#### With Custom Output Directory
+```
+Convert this markdown to PDF and save it to my Documents folder:
+
+# Meeting Notes
+- Point 1
+- Point 2
+
+Save as "meeting_notes.pdf" in "C:\Users\YourName\Documents"
+```
+
+#### With Custom Styling
+```
+Convert this markdown to PDF with custom styling:
+
+# Styled Document
+This document should have a serif font.
+
+Save as "styled.pdf" with CSS that uses Georgia font family.
+```
+
 ### Available Tools
 
 #### `save_markdown_to_pdf`

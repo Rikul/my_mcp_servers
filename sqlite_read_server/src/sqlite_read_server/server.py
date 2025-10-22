@@ -2,24 +2,42 @@
 
 from __future__ import annotations
 
+import argparse
+import os
 import re
 import sqlite3
+import sys
 from pathlib import Path
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
+# Global variable to store the configured database path
+_database_path: str | None = None
+
 mcp = FastMCP("SQLite Read-Only Server")
 
 
-def _validate_database_path(db_path: str) -> str:
+def _validate_database_path(db_path: str | None = None) -> str:
     """Validate that the database path exists and is accessible."""
-    path = Path(db_path)
+    # Use provided path or fall back to global configuration
+    path_to_check = db_path or _database_path
+    
+    if not path_to_check:
+        raise ValueError("No database path configured. Please provide db_path parameter or configure database path at startup.")
+    
+    path = Path(path_to_check)
     if not path.exists():
-        raise ValueError(f"Database file does not exist: {db_path}")
+        raise ValueError(f"Database file does not exist: {path_to_check}")
     if not path.is_file():
-        raise ValueError(f"Path is not a file: {db_path}")
-    return db_path
+        raise ValueError(f"Path is not a file: {path_to_check}")
+    return str(path_to_check)
+
+
+def set_database_path(path: str) -> None:
+    """Set the global database path."""
+    global _database_path
+    _database_path = _validate_database_path(path)
 
 
 def _is_read_only_query(query: str) -> bool:
@@ -60,20 +78,20 @@ def _is_read_only_query(query: str) -> bool:
 
 
 @mcp.tool()
-def list_tables(db_path: str) -> list[str] | str:
+def list_tables(db_path: str | None = None) -> list[str] | str:
     """
     List all tables in a SQLite database.
 
     Args:
-        db_path: Path to the SQLite database file
+        db_path: Path to the SQLite database file (optional if configured at startup)
 
     Returns:
         List of table names in the database, or error message
     """
     try:
-        _validate_database_path(db_path)
+        validated_path = _validate_database_path(db_path)
 
-        conn = sqlite3.connect(db_path)
+        conn = sqlite3.connect(validated_path)
         try:
             cursor = conn.cursor()
             cursor.execute(
@@ -90,25 +108,25 @@ def list_tables(db_path: str) -> list[str] | str:
 
 @mcp.tool()
 def read_rows(
-    db_path: str,
     table_name: str,
     limit: int = 100,
-    offset: int = 0
+    offset: int = 0,
+    db_path: str | None = None
 ) -> dict[str, Any] | str:
     """
     Read rows from a specific table in a SQLite database.
 
     Args:
-        db_path: Path to the SQLite database file
         table_name: Name of the table to read from
         limit: Maximum number of rows to return (default: 100, max: 10000)
         offset: Number of rows to skip (default: 0)
+        db_path: Path to the SQLite database file (optional if configured at startup)
 
     Returns:
         Dictionary containing column names and row data, or error message
     """
     try:
-        _validate_database_path(db_path)
+        validated_path = _validate_database_path(db_path)
 
         # Validate limit
         if limit <= 0:
@@ -125,7 +143,7 @@ def read_rows(
         if not re.match(r'^[a-zA-Z0-9_]+$', table_name):
             return "Error: Invalid table name. Only alphanumeric characters and underscores are allowed."
 
-        conn = sqlite3.connect(db_path)
+        conn = sqlite3.connect(validated_path)
         try:
             cursor = conn.cursor()
 
@@ -163,7 +181,7 @@ def read_rows(
 
 
 @mcp.tool()
-def execute_select(db_path: str, query: str) -> dict[str, Any] | str:
+def execute_select(query: str, db_path: str | None = None) -> dict[str, Any] | str:
     """
     Execute a SELECT query on a SQLite database.
 
@@ -172,19 +190,19 @@ def execute_select(db_path: str, query: str) -> dict[str, Any] | str:
     will be rejected.
 
     Args:
-        db_path: Path to the SQLite database file
         query: SELECT query to execute
+        db_path: Path to the SQLite database file (optional if configured at startup)
 
     Returns:
         Dictionary containing column names and query results, or error message
     """
     try:
-        _validate_database_path(db_path)
+        validated_path = _validate_database_path(db_path)
 
         # Validate that query is read-only
         _is_read_only_query(query)
 
-        conn = sqlite3.connect(db_path)
+        conn = sqlite3.connect(validated_path)
         try:
             cursor = conn.cursor()
             cursor.execute(query)
@@ -215,6 +233,41 @@ def execute_select(db_path: str, query: str) -> dict[str, Any] | str:
 
 def main() -> None:
     """Run the MCP server."""
+    parser = argparse.ArgumentParser(description="SQLite Read-Only MCP Server")
+    parser.add_argument(
+        "--database", "-d",
+        type=str,
+        help="Path to the SQLite database file"
+    )
+    parser.add_argument(
+        "--env-var",
+        type=str,
+        default="SQLITE_DATABASE_PATH",
+        help="Environment variable name for database path (default: SQLITE_DATABASE_PATH)"
+    )
+    
+    args = parser.parse_args()
+    
+    # Determine database path from command line, environment variable, or prompt for it
+    database_path = None
+    
+    if args.database:
+        database_path = args.database
+    elif args.env_var and os.getenv(args.env_var):
+        database_path = os.getenv(args.env_var)
+    
+    # If no database path is provided, the server will still start but require
+    # db_path to be provided in each function call
+    if database_path:
+        try:
+            set_database_path(database_path)
+            print(f"Configured database: {database_path}", file=sys.stderr)
+        except Exception as e:
+            print(f"Error configuring database: {e}", file=sys.stderr)
+            sys.exit(1)
+    else:
+        print("No database configured. Database path must be provided in function calls.", file=sys.stderr)
+    
     mcp.run()
 
 
