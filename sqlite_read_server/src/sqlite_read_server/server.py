@@ -40,6 +40,53 @@ def set_database_path(path: str) -> None:
     _database_path = _validate_database_path(path)
 
 
+def _strip_string_literals(query: str) -> str:
+    """Return the query with contents of quoted string literals removed."""
+
+    result: list[str] = []
+    i = 0
+    in_single = False
+    in_double = False
+    length = len(query)
+
+    while i < length:
+        char = query[i]
+
+        if in_single:
+            if char == "'":
+                # SQLite escapes single quotes with a doubled quote.
+                if i + 1 < length and query[i + 1] == "'":
+                    i += 2
+                    continue
+                in_single = False
+            i += 1
+            continue
+
+        if in_double:
+            if char == '"':
+                if i + 1 < length and query[i + 1] == '"':
+                    i += 2
+                    continue
+                in_double = False
+            i += 1
+            continue
+
+        if char == "'":
+            in_single = True
+            i += 1
+            continue
+
+        if char == '"':
+            in_double = True
+            i += 1
+            continue
+
+        result.append(char)
+        i += 1
+
+    return "".join(result)
+
+
 def _is_read_only_query(query: str) -> bool:
     """
     Validate that a SQL query is read-only (SELECT only).
@@ -51,8 +98,11 @@ def _is_read_only_query(query: str) -> bool:
     query_clean = re.sub(r'--.*$', '', query, flags=re.MULTILINE)
     query_clean = re.sub(r'/\*.*?\*/', '', query_clean, flags=re.DOTALL)
 
+    # Remove string literals to avoid false positives when scanning for keywords
+    query_no_literals = _strip_string_literals(query_clean)
+
     # Convert to uppercase for checking
-    query_upper = query_clean.upper().strip()
+    query_upper = query_no_literals.upper().strip()
 
     # Check for prohibited keywords
     prohibited_keywords = [
@@ -69,9 +119,9 @@ def _is_read_only_query(query: str) -> bool:
             )
 
     # Must start with SELECT (after whitespace)
-    if not query_upper.startswith('SELECT'):
+    if not (query_upper.startswith('SELECT') or query_upper.startswith('WITH')):
         raise ValueError(
-            "Query must start with SELECT. Only SELECT queries are allowed."
+            "Query must start with SELECT or WITH. Only read-only queries are allowed."
         )
 
     return True
