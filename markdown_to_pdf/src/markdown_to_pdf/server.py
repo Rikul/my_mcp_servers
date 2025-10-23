@@ -204,9 +204,11 @@ def markdown_to_reportlab(markdown_text):
                 list_items = []
                 in_list = False
             story.append(Spacer(1, 0.2*inch))
-            story.append(Table([['']],  colWidths=[6*inch], style=[
+            hr_table = Table([['']],  colWidths=[6*inch])
+            hr_table.setStyle(TableStyle([
                 ('LINEABOVE', (0, 0), (-1, -1), 1, colors.HexColor('#eeeeee'))
             ]))
+            story.append(hr_table)
             story.append(Spacer(1, 0.2*inch))
             i += 1
             continue
@@ -340,18 +342,42 @@ def is_special_line(line):
 
 def create_list(items, list_type, styles):
     """Create a list flowable from list items."""
-    list_items = []
-    for item_text in items:
-        list_items.append(ListItem(
-            Paragraph(item_text, styles['CustomBody']),
-            leftIndent=20
-        ))
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.enums import TA_LEFT
 
-    bullet_type = 'bullet' if list_type == 'bullet' else '1'
+    # Create a custom bullet style with left indent
+    bullet_style = ParagraphStyle(
+        'BulletStyle',
+        parent=styles['CustomBody'],
+        leftIndent=20,
+        bulletIndent=10
+    )
+
+    list_items = []
+
+    if list_type == 'bullet':
+        # For bullet lists, use bullet character
+        for item_text in items:
+            list_items.append(ListItem(
+                Paragraph(item_text, styles['CustomBody']),
+                leftIndent=20,
+                value='bullet'
+            ))
+        bullet_type = 'bullet'
+    else:
+        # For numbered lists, manually create numbered items with string values
+        for idx, item_text in enumerate(items, start=1):
+            list_items.append(ListItem(
+                Paragraph(item_text, styles['CustomBody']),
+                leftIndent=20,
+                value=str(idx)  # Ensure bullet value is a string, not an integer
+            ))
+        bullet_type = '1'
+
     return ListFlowable(
         list_items,
         bulletType=bullet_type,
-        start=1
+        start='1' if list_type != 'bullet' else None  # start as string for numbered lists
     )
 
 
