@@ -360,22 +360,50 @@ def process_inline_formatting(text):
     # Escape HTML first
     text = escape_html(text)
 
+    # Extract inline code segments so that other formatting doesn't affect them
+    code_spans: list[str] = []
+
+    def _store_code(match: re.Match[str]) -> str:
+        code_spans.append(match.group(1))
+        return f"{{{{CODE_{len(code_spans) - 1}}}}}"
+
+    text = re.sub(r'`([^`]+)`', _store_code, text)
+
     # Bold and italic: **text** or __text__
     text = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)
     text = re.sub(r'__(.+?)__', r'<b>\1</b>', text)
 
-    # Italic: *text* or _text_
+    # Italic: *text*
     text = re.sub(r'\*(.+?)\*', r'<i>\1</i>', text)
-    text = re.sub(r'_(.+?)_', r'<i>\1</i>', text)
 
-    # Inline code: `code`
-    text = re.sub(r'`(.+?)`', r'<font name="Courier" backColor="#f6f8fa">\1</font>', text)
+    # Italic: _text_ (but ignore underscores inside identifiers/URLs)
+    def _italicize_underscore(match: re.Match[str]) -> str:
+        start, end = match.span()
+        prev_char = match.string[start - 1] if start > 0 else ''
+        next_char = match.string[end] if end < len(match.string) else ''
+
+        if prev_char and prev_char.isalnum():
+            return match.group(0)
+        if next_char and next_char.isalnum():
+            return match.group(0)
+
+        return f"<i>{match.group(1)}</i>"
+
+    text = re.sub(r'_(.+?)_', _italicize_underscore, text)
 
     # Links: [text](url)
     text = re.sub(r'\[(.+?)\]\((.+?)\)', r'<link href="\2" color="blue"><u>\1</u></link>', text)
 
     # Strikethrough: ~~text~~
     text = re.sub(r'~~(.+?)~~', r'<strike>\1</strike>', text)
+
+    # Restore inline code segments
+    for index, code in enumerate(code_spans):
+        placeholder = f"{{{{CODE_{index}}}}}"
+        text = text.replace(
+            placeholder,
+            f'<font name="Courier" backColor="#f6f8fa">{code}</font>',
+        )
 
     return text
 
