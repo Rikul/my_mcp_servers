@@ -5,12 +5,14 @@ A Model Context Protocol (MCP) server that provides secure, read-only access to 
 ## Features
 
 - **Read-Only Access**: All operations are strictly read-only. Write operations (INSERT, UPDATE, DELETE, etc.) are blocked
-- **Three Main Tools**:
+- **Four Main Tools**:
   - `list_tables`: List all tables in a database
   - `read_rows`: Read rows from a specific table with pagination
   - `execute_select`: Execute custom SELECT queries with validation
+  - `get_table_info`: Get detailed information about a table's structure
 - **Security**: Query validation prevents SQL injection and write operations
 - **Error Handling**: Comprehensive error messages for debugging
+- **Database Configuration**: Database path must be configured at server startup
 
 ## Installation
 
@@ -23,7 +25,7 @@ pip install -e .
 
 ### Command Line Options
 
-You can specify the database path in several ways:
+The database path is **required** and can be specified in two ways:
 
 1. **Command line argument**:
 ```bash
@@ -43,14 +45,11 @@ set MY_DB_PATH=C:\path\to\your\database.db
 sqlite-read-server-mcp --env-var MY_DB_PATH
 ```
 
-3. **No database configured** (database path required in each function call):
-```bash
-sqlite-read-server-mcp
-```
+**Note**: A database path must be provided at startup. The server will not start without a valid database configuration.
 
 ## MCP Client Configuration
 
-To use this server with an MCP client (like Claude Desktop), add the following configuration:
+To use this server with an MCP client (like Claude Desktop), add the following configuration. **Note**: The database path must be configured at server startup.
 
 ### Claude Desktop Configuration with Database Path
 
@@ -113,7 +112,7 @@ If you installed the package in a virtual environment:
 }
 ```
 
-Once configured, restart your MCP client to load the server. The server will be available with three tools: `list_tables`, `read_rows`, and `execute_select`.
+Once configured, restart your MCP client to load the server. The server will be available with four tools: `list_tables`, `read_rows`, `execute_select`, and `get_table_info`.
 
 ## Available Tools
 
@@ -122,19 +121,14 @@ Once configured, restart your MCP client to load the server. The server will be 
 Lists all tables in a SQLite database.
 
 **Parameters:**
-- `db_path` (string, optional): Path to the SQLite database file (not required if configured at startup)
+- None (uses database configured at startup)
 
 **Returns:**
 - List of table names, or error message
 
 **Example:**
 ```python
-# When database is configured at startup
 list_tables()
-# Returns: ["users", "products", "orders"]
-
-# Or specify database path explicitly
-list_tables(db_path="/path/to/database.db")
 # Returns: ["users", "products", "orders"]
 ```
 
@@ -146,7 +140,6 @@ Reads rows from a specific table with pagination support.
 - `table_name` (string, required): Name of the table to read from
 - `limit` (integer, optional): Maximum number of rows to return (default: 100, max: 10000)
 - `offset` (integer, optional): Number of rows to skip (default: 0)
-- `db_path` (string, optional): Path to the SQLite database file (not required if configured at startup)
 
 **Returns:**
 - Dictionary containing:
@@ -158,19 +151,10 @@ Reads rows from a specific table with pagination support.
 
 **Example:**
 ```python
-# When database is configured at startup
 read_rows(
     table_name="users",
     limit=10,
     offset=0
-)
-
-# Or specify database path explicitly
-read_rows(
-    table_name="users",
-    limit=10,
-    offset=0,
-    db_path="/path/to/database.db"
 )
 # Returns:
 # {
@@ -188,7 +172,6 @@ Executes a custom SELECT query on the database.
 
 **Parameters:**
 - `query` (string, required): SELECT query to execute
-- `db_path` (string, optional): Path to the SQLite database file (not required if configured at startup)
 
 **Security:**
 - Only read-only queries (starting with SELECT or WITH) are allowed
@@ -203,21 +186,63 @@ Executes a custom SELECT query on the database.
 
 **Example:**
 ```python
-# When database is configured at startup
 execute_select(
     query="SELECT name, email FROM users WHERE id > 10 LIMIT 5"
-)
-
-# Or specify database path explicitly
-execute_select(
-    query="SELECT name, email FROM users WHERE id > 10 LIMIT 5",
-    db_path="/path/to/database.db"
 )
 # Returns:
 # {
 #   "columns": ["name", "email"],
 #   "rows": [["Alice", "alice@example.com"], ["Bob", "bob@example.com"]],
 #   "count": 2
+# }
+```
+
+### 4. get_table_info
+
+Get detailed information about a table's structure using PRAGMA table_info.
+
+**Parameters:**
+- `table_name` (string, required): Name of the table to get information for
+
+**Returns:**
+- Dictionary containing:
+  - `table_name`: Name of the table
+  - `columns`: List of column information dictionaries
+  - `column_count`: Number of columns in the table
+
+Each column information dictionary contains:
+- `cid`: Column ID (position)
+- `name`: Column name
+- `type`: Data type
+- `notnull`: Whether the column has NOT NULL constraint
+- `default_value`: Default value for the column
+- `pk`: Whether the column is part of the primary key
+
+**Example:**
+```python
+get_table_info(table_name="users")
+# Returns:
+# {
+#   "table_name": "users",
+#   "columns": [
+#     {
+#       "cid": 0,
+#       "name": "id",
+#       "type": "INTEGER",
+#       "notnull": true,
+#       "default_value": null,
+#       "pk": true
+#     },
+#     {
+#       "cid": 1,
+#       "name": "name",
+#       "type": "TEXT",
+#       "notnull": false,
+#       "default_value": null,
+#       "pk": false
+#     }
+#   ],
+#   "column_count": 2
 # }
 ```
 
@@ -249,6 +274,7 @@ Database paths are validated to ensure:
 
 The server provides clear error messages for common issues:
 
+- **Database not configured**: "No database path configured. Please configure database path at startup."
 - **Database not found**: "Database file does not exist: /path/to/db"
 - **Invalid table name**: "Error: Invalid table name. Only alphanumeric characters and underscores are allowed."
 - **Table doesn't exist**: "Error: Table 'table_name' does not exist"
@@ -261,3 +287,28 @@ The server provides clear error messages for common issues:
 - Only SELECT queries supported
 - No write operations allowed
 - SQLite databases only
+
+
+# Example System Prompt to use with the tool
+
+You are a world-class, helpful, and highly knowledgeable Database Administrator (DBA). Your expertise covers all major SQL dialects.
+
+Your core mission is to provide technical, detailed, and actionable advice. All recommendations must adhere to industry best practices for data integrity, security, performance, and scalability.
+
+When responding:
+
+Be Pragmatic: Focus on solutions that can be implemented effectively in a production environment.
+
+Tone: Maintain a professional, technical, and solution-oriented tone.
+
+You can use DB tools to get a list of tables, get information about any table, get all rows in a table or send a SELECT query.
+
+---
+
+Before starting the conversation:
+
+	- Get the list of tables.
+	- If no database is connected, ask the user for database path.
+	- When the database is connected, get the list of tables and for each table, get the table information.
+
+You should display results to the user and ask for furture instructions.
