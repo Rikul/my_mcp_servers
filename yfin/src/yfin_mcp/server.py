@@ -124,6 +124,108 @@ def _limit_to_recent_days(candles: List[Candle], last_n_days: int | None) -> Lis
     return candles[-last_n_days:]
 
 
+def _normalize_info_value(value: Any) -> Any:
+    """Normalize values returned by yfinance for safe JSON serialization."""
+
+    if value is None:
+        return None
+
+    if isinstance(value, (pd.Timestamp, datetime)):
+        return value.isoformat()
+
+    if pd.isna(value):  # type: ignore[arg-type]
+        return None
+
+    if hasattr(value, "item"):
+        try:
+            return value.item()
+        except Exception:
+            return value
+
+    return value
+
+
+def _fetch_ticker_info(ticker: str) -> Dict[str, Any]:
+    """Retrieve summary information about a ticker symbol."""
+
+    info = yf.Ticker(ticker).get_info()
+
+    if not info:
+        raise ValueError(f"No ticker information available for {ticker}")
+
+    field_map = {
+        "symbol": "symbol",
+        "shortName": "short_name",
+        "longName": "long_name",
+        "quoteType": "quote_type",
+        "currency": "currency",
+        "exchange": "exchange",
+        "marketState": "market_state",
+        "sector": "sector",
+        "industry": "industry",
+        "country": "country",
+        "fullTimeEmployees": "full_time_employees",
+        "marketCap": "market_cap",
+        "enterpriseValue": "enterprise_value",
+        "trailingPE": "trailing_pe",
+        "forwardPE": "forward_pe",
+        "dividendYield": "dividend_yield",
+        "fiftyTwoWeekHigh": "fifty_two_week_high",
+        "fiftyTwoWeekLow": "fifty_two_week_low",
+        "fiftyDayAverage": "fifty_day_average",
+        "twoHundredDayAverage": "two_hundred_day_average",
+        "beta": "beta",
+        "revenueGrowth": "revenue_growth",
+        "epsTrailingTwelveMonths": "eps_trailing_twelve_months",
+        "epsForward": "eps_forward",
+        "trailingAnnualDividendRate": "trailing_annual_dividend_rate",
+        "trailingAnnualDividendYield": "trailing_annual_dividend_yield",
+        "netIncomeToCommon": "net_income_to_common",
+        "profitMargins": "profit_margins",
+        "website": "website",
+        "logo_url": "logo_url",
+    }
+
+    payload: Dict[str, Any] = {"ticker": ticker.upper()}
+
+    for source_key, target_key in field_map.items():
+        value = _normalize_info_value(info.get(source_key))
+        if value is not None:
+            payload[target_key] = value
+
+    summary_fields = [
+        "longBusinessSummary",
+        "companyOfficers",
+    ]
+
+    for key in summary_fields:
+        value = info.get(key)
+        if key == "companyOfficers" and isinstance(value, list):
+            normalized_officers = []
+            for officer in value:
+                if not isinstance(officer, dict):
+                    continue
+                normalized_officer: Dict[str, Any] = {}
+                for officer_key, officer_value in officer.items():
+                    normalized_value = _normalize_info_value(officer_value)
+                    if normalized_value is not None:
+                        normalized_officer[officer_key] = normalized_value
+                if normalized_officer:
+                    normalized_officers.append(normalized_officer)
+            if normalized_officers:
+                payload["company_officers"] = normalized_officers
+            continue
+
+        normalized_value = _normalize_info_value(value)
+        if normalized_value is not None:
+            payload["long_business_summary" if key == "longBusinessSummary" else key] = (
+                normalized_value
+            )
+
+    payload["as_json"] = json.dumps(payload, separators=(",", ":"))
+    return payload
+
+
 @mcp.tool()
 def get_ticker_data(
     ticker: str,
@@ -177,6 +279,16 @@ def get_ticker_data(
     return payload
 
 
+@mcp.tool()
+def get_ticker_info(ticker: str) -> Dict[str, Any]:
+    """Fetch descriptive information and fundamentals for a ticker symbol."""
+
+    if not ticker:
+        raise ValueError("ticker is required")
+
+    return _fetch_ticker_info(ticker)
+
+
 def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run the yfinance MCP server")
     parser.add_argument(
@@ -198,6 +310,7 @@ def main() -> None:
 __all__ = [
     "Candle",
     "get_ticker_data",
+    "get_ticker_info",
     "main",
     "mcp",
     "server",
