@@ -10,9 +10,10 @@ from typing import Any, Dict, List
 
 import pandas as pd
 import yfinance as yf
-from modelcontextprotocol.server import Server
+from fastmcp import FastMCP
 
-SERVER_NAME = "yfinance"
+mcp = FastMCP("yfinance MCP Server")
+server = mcp  # export alias expected by clients importing `server`
 
 
 @dataclass(frozen=True)
@@ -98,7 +99,6 @@ def _fetch_history(ticker: str, start: datetime, end: datetime) -> List[Candle]:
     return _serialize_candles(history[columns])
 
 
-server = Server(SERVER_NAME)
 
 
 def _validate_request(ticker: str, date: str | None, last_n_days: int | None) -> None:
@@ -124,39 +124,22 @@ def _limit_to_recent_days(candles: List[Candle], last_n_days: int | None) -> Lis
     return candles[-last_n_days:]
 
 
-@server.tool(
-    name="get_ticker_data",
-    description=(
-        "Fetch OHLCV pricing data for a ticker symbol. Provide either a specific "
-        "calendar date (YYYY-MM-DD) or the number of most recent trading days to "
-        "retrieve."
-    ),
-    input_schema={
-        "type": "object",
-        "properties": {
-            "ticker": {
-                "type": "string",
-                "description": "Ticker symbol to query (e.g., AAPL)",
-            },
-            "date": {
-                "type": ["string", "null"],
-                "description": "Specific date in YYYY-MM-DD format",
-            },
-            "last_n_days": {
-                "type": ["integer", "null"],
-                "minimum": 1,
-                "description": "Number of most recent trading days to fetch",
-            },
-        },
-        "required": ["ticker"],
-    },
-)
+@mcp.tool()
 def get_ticker_data(
     ticker: str,
     date: str | None = None,
     last_n_days: int | None = None,
 ) -> Dict[str, Any]:
-    """Retrieve yfinance data for a ticker."""
+    """Fetch OHLCV pricing data for a ticker symbol.
+
+    Provide either a specific calendar date (YYYY-MM-DD) or the number of most
+    recent trading days to retrieve.
+
+    Args:
+        ticker: Ticker symbol to query (e.g., AAPL)
+        date: Specific date in YYYY-MM-DD format
+        last_n_days: Number of most recent trading days to fetch (minimum: 1)
+    """
 
     _validate_request(ticker, date, last_n_days)
 
@@ -209,12 +192,17 @@ def main() -> None:
 
     parser = _build_arg_parser()
     _ = parser.parse_args()
-    server.run()
+    mcp.run()
 
 
 __all__ = [
     "Candle",
     "get_ticker_data",
     "main",
+    "mcp",
     "server",
 ]
+
+
+if __name__ == "__main__":
+    main()
