@@ -5,6 +5,7 @@ A Model Context Protocol (MCP) server that provides access to financial market d
 ## Features
 
 - Fetch OHLCV pricing data for any ticker symbol
+- Retrieve descriptive company and fundamentals data for a ticker
 - Query data for specific dates (YYYY-MM-DD format)
 - Retrieve the most recent N trading days
 - Automatic handling of weekends and market holidays
@@ -141,6 +142,24 @@ Fetch OHLCV pricing data for a ticker symbol.
   - `close`: Closing price
   - `volume`: Trading volume
 - `requested_date` or `requested_days`: The query parameters used
+- `as_json`: Complete response as a JSON string
+
+### get_ticker_info
+
+Fetch descriptive information and fundamental metrics for a ticker symbol.
+
+**Parameters:**
+
+- `ticker` (string, required): Ticker symbol to query (e.g., "AAPL", "MSFT", "GOOGL")
+
+**Returns:**
+
+- `ticker`: The ticker symbol (uppercase)
+- `symbol`, `short_name`, `long_name`, `quote_type`, `currency`, `exchange`, `market_state`, `sector`, `industry`, `country`, `full_time_employees`: Identification and classification data when available
+- `market_cap`, `enterprise_value`, `trailing_pe`, `forward_pe`, `dividend_yield`, `fifty_two_week_high`, `fifty_two_week_low`, `fifty_day_average`, `two_hundred_day_average`, `beta`, `revenue_growth`, `eps_trailing_twelve_months`, `eps_forward`, `trailing_annual_dividend_rate`, `trailing_annual_dividend_yield`, `net_income_to_common`, `profit_margins`: Selected fundamental metrics when available
+- `website`, `logo_url`: Branding details when available
+- `long_business_summary`: Company summary text when available
+- `company_officers`: Normalized list of officer details when provided by Yahoo Finance
 - `as_json`: Complete response as a JSON string
 
 ## Examples
