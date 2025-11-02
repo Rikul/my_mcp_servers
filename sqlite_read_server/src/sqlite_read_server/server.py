@@ -23,8 +23,10 @@ def _validate_database_path() -> str:
     global _database_path
 
     if not _database_path:
-        raise ValueError("No database path configured. Please configure database path at startup.")
-    
+        raise ValueError(
+            "No database path configured. Please configure database path at startup."
+        )
+
     path = Path(_database_path)
     if not path.exists():
         raise ValueError(f"Database file does not exist:{_database_path}")
@@ -88,8 +90,8 @@ def _is_read_only_query(query: str) -> bool:
     Raises ValueError if the query contains prohibited operations.
     """
     # Remove SQL comments
-    query_clean = re.sub(r'--.*$', '', query, flags=re.MULTILINE)
-    query_clean = re.sub(r'/\*.*?\*/', '', query_clean, flags=re.DOTALL)
+    query_clean = re.sub(r"--.*$", "", query, flags=re.MULTILINE)
+    query_clean = re.sub(r"/\*.*?\*/", "", query_clean, flags=re.DOTALL)
 
     # Remove string literals to avoid false positives when scanning for keywords
     query_no_literals = _strip_string_literals(query_clean)
@@ -99,20 +101,29 @@ def _is_read_only_query(query: str) -> bool:
 
     # Check for prohibited keywords
     prohibited_keywords = [
-        'INSERT', 'UPDATE', 'DELETE', 'DROP', 'CREATE', 'ALTER',
-        'TRUNCATE', 'REPLACE', 'ATTACH', 'DETACH', 'PRAGMA'
+        "INSERT",
+        "UPDATE",
+        "DELETE",
+        "DROP",
+        "CREATE",
+        "ALTER",
+        "TRUNCATE",
+        "REPLACE",
+        "ATTACH",
+        "DETACH",
+        "PRAGMA",
     ]
 
     for keyword in prohibited_keywords:
         # Use word boundaries to avoid false positives
-        if re.search(rf'\b{keyword}\b', query_upper):
+        if re.search(rf"\b{keyword}\b", query_upper):
             raise ValueError(
                 f"Query contains prohibited keyword '{keyword}'. "
                 f"Only SELECT queries are allowed."
             )
 
     # Must start with SELECT (after whitespace)
-    if not (query_upper.startswith('SELECT') or query_upper.startswith('WITH')):
+    if not (query_upper.startswith("SELECT") or query_upper.startswith("WITH")):
         raise ValueError(
             "Query must start with SELECT or WITH. Only read-only queries are allowed."
         )
@@ -148,9 +159,7 @@ def list_tables() -> list[str] | str:
 
 @mcp.tool()
 def read_rows(
-    table_name: str,
-    limit: int = 100,
-    offset: int = 0
+    table_name: str, limit: int = 100, offset: int = 0
 ) -> dict[str, Any] | str:
     """
     Read rows from a specific table in a SQLite database.
@@ -178,7 +187,7 @@ def read_rows(
 
         # Sanitize table name to prevent SQL injection
         # Only allow alphanumeric, underscore, and basic characters
-        if not re.match(r'^[a-zA-Z0-9_]+$', table_name):
+        if not re.match(r"^[a-zA-Z0-9_]+$", table_name):
             return "Error: Invalid table name. Only alphanumeric characters and underscores are allowed."
 
         conn = sqlite3.connect(validated_path)
@@ -188,7 +197,7 @@ def read_rows(
             # Check if table exists
             cursor.execute(
                 "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-                (table_name,)
+                (table_name,),
             )
             if not cursor.fetchone():
                 return f"Error: Table '{table_name}' does not exist"
@@ -199,8 +208,7 @@ def read_rows(
 
             # Read rows
             cursor.execute(
-                f"SELECT * FROM {table_name} LIMIT ? OFFSET ?",
-                (limit, offset)
+                f"SELECT * FROM {table_name} LIMIT ? OFFSET ?", (limit, offset)
             )
             rows = cursor.fetchall()
 
@@ -209,7 +217,7 @@ def read_rows(
                 "rows": rows,
                 "count": len(rows),
                 "offset": offset,
-                "limit": limit
+                "limit": limit,
             }
         finally:
             conn.close()
@@ -245,15 +253,13 @@ def execute_select(query: str) -> dict[str, Any] | str:
             cursor.execute(query)
 
             # Get column names from cursor description
-            columns = [desc[0] for desc in cursor.description] if cursor.description else []
+            columns = (
+                [desc[0] for desc in cursor.description] if cursor.description else []
+            )
 
             rows = cursor.fetchall()
 
-            return {
-                "columns": columns,
-                "rows": rows,
-                "count": len(rows)
-            }
+            return {"columns": columns, "rows": rows, "count": len(rows)}
         finally:
             conn.close()
 
@@ -284,7 +290,7 @@ def get_table_info(table_name: str) -> dict[str, Any] | str:
 
         # Sanitize table name to prevent SQL injection
         # Only allow alphanumeric, underscore, and basic characters
-        if not re.match(r'^[a-zA-Z0-9_]+$', table_name):
+        if not re.match(r"^[a-zA-Z0-9_]+$", table_name):
             return "Error: Invalid table name. Only alphanumeric characters and underscores are allowed."
 
         conn = sqlite3.connect(validated_path)
@@ -294,7 +300,7 @@ def get_table_info(table_name: str) -> dict[str, Any] | str:
             # Check if table exists
             cursor.execute(
                 "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-                (table_name,)
+                (table_name,),
             )
             if not cursor.fetchone():
                 return f"Error: Table '{table_name}' does not exist"
@@ -307,19 +313,19 @@ def get_table_info(table_name: str) -> dict[str, Any] | str:
             columns = []
             for row in table_info:
                 column_info = {
-                    "cid": row[0],          # Column ID (position)
-                    "name": row[1],         # Column name
-                    "type": row[2],         # Data type
-                    "notnull": bool(row[3]), # NOT NULL constraint
-                    "default_value": row[4], # Default value
-                    "pk": bool(row[5])      # Primary key
+                    "cid": row[0],  # Column ID (position)
+                    "name": row[1],  # Column name
+                    "type": row[2],  # Data type
+                    "notnull": bool(row[3]),  # NOT NULL constraint
+                    "default_value": row[4],  # Default value
+                    "pk": bool(row[5]),  # Primary key
                 }
                 columns.append(column_info)
 
             return {
                 "table_name": table_name,
                 "columns": columns,
-                "column_count": len(columns)
+                "column_count": len(columns),
             }
         finally:
             conn.close()
@@ -332,36 +338,37 @@ def main() -> None:
     """Run the MCP server."""
     parser = argparse.ArgumentParser(description="SQLite Read-Only MCP Server")
     parser.add_argument(
-        "--database", "-d",
-        type=str,
-        help="Path to the SQLite database file"
+        "--database", "-d", type=str, help="Path to the SQLite database file"
     )
     parser.add_argument(
         "--env-var",
         type=str,
         default="SQLITE_DATABASE_PATH",
-        help="Environment variable name for database path (default: SQLITE_DATABASE_PATH)"
+        help="Environment variable name for database path (default: SQLITE_DATABASE_PATH)",
     )
-    
+
     args = parser.parse_args()
-    
+
     # Determine database path from command line, environment variable, or prompt for it
     database_path = None
-    
+
     if args.database:
         database_path = args.database
     elif args.env_var and os.getenv(args.env_var):
         database_path = os.getenv(args.env_var)
-    
+
     # Database path is now required
     if not database_path:
-        print("Error: Database path is required. Provide it via --database argument or environment variable.", file=sys.stderr)
+        print(
+            "Error: Database path is required. Provide it via --database argument or environment variable.",
+            file=sys.stderr,
+        )
         sys.exit(1)
-    
-    global _database_path 
+
+    global _database_path
     _database_path = database_path.strip()
     _validate_database_path()
-    
+
     mcp.run()
 
 

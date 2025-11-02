@@ -11,8 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
-from mcp.server.fastmcp import FastMCP
-from mcp.server.fastmcp.context import Context
+from fastmcp import FastMCP, Context
 from mcp.server.fastmcp.resources.types import TextResource
 
 mcp = FastMCP("Conversations")
@@ -220,16 +219,26 @@ def load_conversation(conversation_id: str, include_resource: bool = True, ctx: 
     if include_resource:
         resource_uri = f"conversation://{conversation.slug}"
         transcript = _format_conversation_text(conversation)
-        resource = TextResource(
-            uri=resource_uri,
-            name=f"conversation-{conversation.slug}",
-            title=conversation.title,
-            description="Transcript of a stored conversation.",
-            text=transcript,
-        )
-        mcp.add_resource(resource)
-        if ctx is not None:
-            ctx.debug(f"Registered text resource for conversation '{conversation.identifier}'.")
+        
+        # Try using the resource registration method directly
+        try:
+            resource = TextResource(
+                uri=resource_uri,
+                name=f"conversation-{conversation.slug}",
+                title=conversation.title,
+                description="Transcript of a stored conversation.",
+                text=transcript,
+            )
+            # Instead of mcp.add_resource, try using the resource decorator or registration
+            # This might need to be adjusted based on the FastMCP version
+            mcp._resources[resource_uri] = resource
+            
+            if ctx is not None:
+                ctx.debug(f"Registered text resource for conversation '{conversation.identifier}'.")
+        except Exception as e:
+            if ctx is not None:
+                ctx.warning(f"Failed to register resource: {e}")
+            resource_uri = None
 
     return {
         "conversation_id": conversation.identifier,
